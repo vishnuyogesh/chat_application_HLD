@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MyChat</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; display: flex; height: 100vh; }
+        .sidebar { width: 30%; background: #fff; border-right: 1px solid #ddd; overflow-y: auto; }
+        .sidebar-header { padding: 20px; background: #f0f2f5; font-weight: bold; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+        .user-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .user-item:hover { background: #f5f5f5; }
+        .user-item.active { background: #e9edef; }
+        
+        .chat-area { width: 70%; display: flex; flex-direction: column; background: #efeae2; }
+        .chat-header { padding: 15px; background: #f0f2f5; border-bottom: 1px solid #ddd; font-weight: bold; }
+        .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        
+        .message { max-width: 60%; padding: 10px; border-radius: 10px; font-size: 14px; position: relative; }
+        .message.sent { align-self: flex-end; background: #d9fdd3; }
+        .message.received { align-self: flex-start; background: #fff; }
+        .timestamp { font-size: 10px; color: #999; text-align: right; margin-top: 5px; }
+
+        .input-area { padding: 15px; background: #f0f2f5; display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; border: none; background: #008069; color: white; border-radius: 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <span>{{ current_user }}</span>
+            <a href="/logout" style="text-decoration: none; color: red; font-size: 12px;">Logout</a>
+        </div>
+        <div id="user-list">
+            {% for user in users %}
+            <div class="user-item" onclick="selectUser({{ user.id }}, '{{ user.username }}')">
+                {{ user.username }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div class="chat-header" id="chat-header">Select a user to chat</div>
+        <div class="messages" id="messages">
+            </div>
+        <div class="input-area" style="display:none;" id="input-area">
+            <input type="text" id="msg-input" placeholder="Type a message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        let activeChatId = null;
+
+        function selectUser(userId, username) {
+            activeChatId = userId;
+            document.getElementById('chat-header').innerText = "Chat with " + username;
+            document.getElementById('input-area').style.display = "flex";
+            
+            
+            document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+
+            loadMessages();
+        }
+
+        async function loadMessages() {
+            if (!activeChatId) return;
+            const response = await fetch(`/api/get_messages/${activeChatId}`);
+            const messages = await response.json();
+            
+            const msgContainer = document.getElementById('messages');
+            msgContainer.innerHTML = ''; 
+            
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                
+                const isMe = msg.sender === "{{ current_user }}"; 
+                div.className = `message ${isMe ? 'sent' : 'received'}`;
+                div.innerHTML = `${msg.body} <div class="timestamp">${msg.timestamp}</div>`;
+                msgContainer.appendChild(div);
+            });
+            
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('msg-input');
+            const text = input.value;
+            if (!text) return;
+
+            await fetch('/api/send_message', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ receiver_id: activeChatId, text: text })
+            });
+
+            input.value = '';
+            loadMessages();
+        }
+
+
+        setInterval(loadMessages, 2000);
+    </script>
+</body>
+</html>
